@@ -1,0 +1,15 @@
+/usr/bin/jackd -R -P5 -dalsa -r48000 -p1024 -n4 -D -Chw:0,0 -Phw:0,0 -s
+# -R: Run on realtime priority
+# -P: Set the realtime priority
+# -d: Use the ALSA driver backend
+# -r: specify the sample rate
+# -p: Specify the number of frames between jackd calls
+# -n: set the playback latency
+# -D: provide duplex (capture and playback) channels
+# -C: Define Capture hardware port
+# -P: Define Playback hardware port
+
+# Minimal configuration:
+# /usr/bin/jackd -dalsa -dhw:0 -r44100 -p1024 -n2
+
+# Try settings using the jackctrl program.

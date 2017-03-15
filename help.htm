@@ -1,0 +1,136 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+  <title>recordCgi: Hilfe</title>
+  <meta content="Hans-J&uuml;rgen Tappe" name="author">
+</head>
+<body>
+<h1>Dokumentation</h1>
+<ul>
+  <li><a href="#record">Aufnehmen</a></li>
+  <li><a href="#archive">Archivieren</a><br>
+  </li>
+  <li><a href="#burn">CD brennen</a></li>
+  <li><a href="#erase">CD RW l&ouml;schen</a></li>
+  <li><a href="#background">Technische Realisierung</a></li>
+</ul>
+<h2><a name="record"></a>Aufnehmen</h2>
+<p>Nachdem das Programm timemachine (Aufnahmeknopf) aus dem
+recordCgi-Verzeichnis gestartet wurde (start_timemachine.sh),
+kann damit eine Aufnahme gestartet und gestoppt werden. Der
+Aufnahmestart liegt dabei 10 Sekunden in der Vergangenheit.</p>
+<p>In den Web-Interfaces wird angezeigt, f&uuml;r wieviel Aufnahmeminuten
+(inklusive Transcodieren in CD-Format) mindestens noch Platz bleibt.
+</p>
+<h2><a name="archive"></a>Archivieren</h2>
+<p>Unter dem Link <a href="archiv.cgi">archiv.cgi</a> wir die Aufnahme
+sichtbar. Diese kann nun ausgew&auml;hlt werden (die erste ist standardm&auml;&szlig;ig
+ausgew&auml;hlt). Ggf. kann die Seite aktualisiert werden, um neue Aufnahmen
+sichtbar zu machen.</p>
+<p>Die ausgew&auml;hlte Aufnahme kann nun entfernt werden, wenn sie nicht
+archiviert werden soll.</p>
+<p>Normalerweise werden nun jedoch einige Aufnahmeeigenschaften (Thema,
+Redner, Bezug) f&uuml;r die Aufnahme eingegeben. Mit der Option "Zum
+Archivieren Vormerken" wird diese Information als Text neben der
+Aufnahme gespeichert. Die Aufnahme ist damit zum Archivieren vorgemerkt.</p>
+<p>Neben der Aufnahme erscheint die Option "abw&auml;hlen", mit der die
+Aufnahmeinformation wieder gel&ouml;scht wird, so dass die Optionen
+"Entfernen" sowie neue Information speichern wieder m&ouml;glich werden.</p>
+<p>Die nun erscheinende Option "Archivierung starten" setzt die
+&Uuml;bersetzung der Aufnahme-Rohdaten in CD-f&auml;hige Audio-Daten (plus MP3)
+in Gang. Die Scriptausgabe wird im Fenster sichtbar und scrollt
+automatisch bis zum Ende des Vorgangs. Das automatische Scrollen kann
+mit einer beliebigen Tastatureingabe abgebrochen werden.<br>
+</p>
+<h2><a name="burn"></a>CD brennen</h2>
+<p>In der Liste der transcodierten Aufnahmen <a href="list.cgi">list.cgi</a>
+k&ouml;nnen die Aufnahmeinformationen bearbeitet werden (Option
+"bearbeiten").</p>
+<p>Desweiteren kann die Aufnahme auf CD gebrannt werden (Option
+"Brennen"). Hierbei wird zun&auml;chst die CD-Schublade ge&ouml;ffnet, so dass
+die CD eingelegt werden kann. Dieser Vorgang kann zu diesem Zeitpunkt
+auch wieder abgebrochen werden.</p>
+<p>Nach einer gewissen Zeit k&ouml;nnen die Aufnahmen wieder gel&ouml;scht werden
+(Option "Entfernen")</p>
+<p>Um Festplatten-Platz zu sparen, k&ouml;nnen ebenso (am unteren Ende der
+Seite) Zwischenformat-Dateien
+(*.wav, *.iso) entfernt werden. Diese werden nur zum Transcodieren bzw.
+Brennen ben&ouml;tigt und k&ouml;nnen ggf. wieder angefertigt werden. Um den
+Brennvorgang ggf. nicht unn&ouml;tig in die L&auml;nge zu ziehen, werden diese
+Dateien dennoch nur auf dieses manuell ausgel&ouml;ste Kommando aufger&auml;umt.</p>
+<p>Die CDs werden im Multi-Modus gebrannt, d.h. zun&auml;chst eine Session
+mit dem Audio-Track, anschlie&szlig;end ein Daten-Track mit der
+Aufnahme-Information sowie den Audio-Daten in MP3-Format. So kann die
+Aufnahme einfach in einem PC als MP3 genutzt werden.<br>
+<span style="font-weight: bold;">Dies bedeutet, dass man f&uuml;r einen
+80-Minuten-Rohling eine Ansprache <span
+ style="text-decoration: underline;">nach ca. 60 Minuten einmal
+unterbrechen</span> sollte, um die Daten auf zwei CDs verteilt
+aufnehmen zu k&ouml;nnen.</span><br>
+</p>
+<h2><a name="erase"></a>CD RW l&ouml;schen</h2>
+In der Liste der transcodierten Aufnahmen <a href="list.cgi">list.cgi</a>
+k&ouml;nnen CD-RW gel&ouml;scht werden. die z.B. f&uuml;r Testzwecke genutzt oder von
+Interessierten mitgebracht werden (Option
+"CD RW l&ouml;schen").
+<p>Hierbei wird zun&auml;chst die CD-Schublade ge&ouml;ffnet, so dass
+die CD eingelegt werden kann. Optional kann statt einer
+Schnell-L&ouml;schung (Entfernung des CD-Inhaltsverzeichnisses) auch das
+komplette L&ouml;schen gew&auml;hlt werden das allerdings lange dauert. Der
+L&ouml;schauftrag kann zu diesem Zeitpunkt
+auch wieder abgebrochen werden.</p>
+<p>Zum L&ouml;schen von CDs sowie Kopieren von CDs kann ebenfalls das
+Programm "k3b" aufgerufen werden. Darin hat man auch die M&ouml;glichkeit,
+z.B. eine Sammlungs-Audio-CD aus verschiedenen MP3-Dateien zu erstellen.</p>
+<h2><a name="background"></a>Technische Realisierung</h2>
+<p>RecordCGI besteht aus verschiedenen Scripten, die &uuml;ber ein HTML /
+CGI-Interface bedienbar sind.</p>
+<ul>
+  <li>Das HTML-Archivierungs-Script (archiv.cgi),</li>
+  <li>Das HTML-Archiv-Listen-Script (list.cgi),</li>
+  <li>Ein Standard-HTML-Script (index.cgi), das standardm&auml;&szlig;ig eines der
+anderen HTML-Scripte aufruft,</li>
+</ul>
+Diese Scripte werden von den folgenden Dateien unterst&uuml;tzt:<br>
+<ul>
+  <li>Ein Perl-Scriptsprachen-Modul (recordCgi.pm), das gemeinsame
+Funktionen und Werte vereint,<br>
+  </li>
+  <li>Ein Script, um den Aufnahme-Button zu starten
+(start_timemachine.sh)</li>
+  <li>Ein Script, um die Kommandos zum Transcodieren der
+Aufnahme-Rohdaten in CD-Format zu starten (moveTranscode.sh)</li>
+  <li>Eine Auioserver-Konfigurationsdatei (jackdrc) und</li>
+  <li>Ggf. wird eine Log-Datei erstellt (moveTranscode.log).</li>
+</ul>
+<p>Das Ziel dieser Software ist eine robuste und einfach zu bedienende
+Aufnahmefunktionalit&auml;t, bei der in wenigen Schritten eine CD mit
+Aufnahmeinformationen gebrannt und archiviert werden kann. Die Wahl f&uuml;r
+den Aufnahme-Button (timemachine) und damit gegen komplexe
+Programme (z.B. Audacity) fiel aus den folgenden Gr&uuml;nden:</p>
+<ul>
+  <li>Die Reproduzierbarkeit der Aufnahmequalit&auml;t
+(Programm-Einstellungen wie bei Audacity sind selbst nach einem Restart
+m&ouml;glicherweise komplex verstellt)</li>
+  <li>Der Jack-Audio-Server bietet Echtzeit-Aufnahmequalit&auml;t ohne
+m&ouml;gliche Einschr&auml;nkungen wie I/O-Last oder die begrenzte Aufnahmezeit
+von WAV(32)-Dateien</li>
+  <li>Das Konvertieren in CD-kompatibles Format f&uuml;r neue Nutzer ist in
+Programmen wie Audacity nicht einfach zu verstehen und &auml;ndert sich
+zwischen Versionen ggf.. Ein einfaches Interface, das die verschiedenen
+Schritte versteckt (Konvertieren in WAV32, anpassen an 44100 bps,
+normalisieren / Pegel anpassen etc.) ist ein wichtiges Ziel.</li>
+  <li>Dasselbe gilt f&uuml;r das Brennen der Multi-Session-CD (Audio-CD mit
+Daten-Track, der Info und MP3 enth&auml;lt), das in standard-Programmen nur
+in verschiedenen Schritten nach komplexer Einweisung m&ouml;glich ist. Auch
+hier ist ein einfaches Interface das Ziel.</li>
+  <li>Die Abrufbarkeit der archivierten Audio-Daten &uuml;ber das Intranet<br>
+  </li>
+</ul>
+<p>F&uuml;r eine detaillierte Dokumentation der Schritte, die von der
+Aufnahme
+zur gebrannten CD f&uuml;hren, wird auf den kommentierten Code in den
+Scripten verwiesen. Wo Kommentare fehlen, sei auf die Manpage der
+verwendeten Programme hingewiesen.</p>
+</body>
+</html>

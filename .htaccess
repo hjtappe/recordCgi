@@ -1,0 +1,22 @@
+# Enable ExecCgi in /etc/apache2/mods-enabled/userdir.conf:
+# Options MultiViews Indexes SymLinksIfOwnerMatch ExecCGI
+
+DirectoryIndex index.cgi index.php index.html
+
+# Register the CGI extension:
+AddHandler cgi-script .cgi
+
+# Restrict file access
+<Files ~ "\.inc\.php$">
+    Order allow,deny
+    Deny from all
+</Files>
+<Files ~ "\.pm$">
+    Order allow,deny
+    Deny from all
+</Files>
+<Files ~ "\.conf$">
+    Order allow,deny
+    Deny from all
+</Files>
+

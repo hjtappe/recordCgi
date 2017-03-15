@@ -1,0 +1,54 @@
+Install jackd, timemachine and qjackctrl
+$ apt-get install \
+	jackd \
+	timemachine \
+	qjackctrl \
+	mp3info \
+	sndfile-programs \
+	normalize-audio \
+	lame \
+	resample \
+	python-mutagen \
+	ffmpeg \
+	libconfig-simple-perl
+
+Configure jackd to run with real-time priority
+$ dpkg-reconfigure -phigh jackd
+
+See files in /usr/share/doc/jackd/ for more information.
+
+Enable programs to autostart jackd
+$ cat /etc/profile.d/jackd.sh 
+export JACK_START_SERVER="yes"
+
+$ sudo adduser $USER audio
+
+Update the priority in System settings - Multimedia to use jackd as first
+priority.
+
+Copy the jackdrc to $HOME/.jackdrc
+
+Start timemachine by registering the start_timemachine.sh in the autostart.
+
+Re-login to apply changes to the environment.
+
+# Enable access from the web interface to the cdrom.
+$ adduser www-data cdrom
+
+Add required folders
+$ mkdir Archiv spool
+$ sudo chgrp www-data spool
+$ sudo chown www-data Archiv
+$ sudo chmod g+s Archiv spool
+
+Prevent screen from blanking
+In file /etc/default/grub add "consoleblank=0"in the following line:
+GRUB_CMDLINE_LINUX="consoleblank=0"
+
+Enable the userdir and CGI apache modules
+$ sudo a2enmod userdir cgi
+
+Enable ExecCgi in /etc/apache2/mods-enabled/userdir.conf:
+Options MultiViews Indexes SymLinksIfOwnerMatch ExecCGI
+
+
