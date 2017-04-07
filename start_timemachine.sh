@@ -5,9 +5,6 @@ set -x
 
 export JACK_START_SERVER=yes
 
-# wait for the Window Manager
-sleep 5
-
 THIS=$(readlink -f $0)
 SPOOLDIR=$(dirname $THIS)/spool
 
@@ -18,7 +15,7 @@ fi
 
 # start jackd using traced parameters
 if [ -z "$(pidof jackd)" ]; then
-	if [ -r "$(dirnname $0)/jackdrc" ]; then
+	if [ -r "$(dirname $0)/jackdrc" ]; then
 		. $(dirname $0)/jackdrc &
 	elif [ -r "${HOME}/.jackdrc" ]; then
 		. ${HOME}/.jackdrc &
@@ -38,7 +35,7 @@ amixer -c0 sset PCM 100%
 
 # Start Button
 (cd "$SPOOLDIR"; timemachine) &
-sleep 2
+sleep 5
 # Connect timemachine to jack
 jack_connect system:capture_1 TimeMachine:in_1
 jack_connect system:capture_2 TimeMachine:in_2

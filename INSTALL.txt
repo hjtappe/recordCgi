@@ -10,6 +10,7 @@ $ apt-get install \
 	resample \
 	python-mutagen \
 	ffmpeg \
+	apache2-suexec-pristine \
 	libconfig-simple-perl
 
 Configure jackd to run with real-time priority
@@ -33,20 +34,21 @@ Start timemachine by registering the start_timemachine.sh in the autostart.
 Re-login to apply changes to the environment.
 
 # Enable access from the web interface to the cdrom.
-$ adduser www-data cdrom
+$ sudo adduser $USER cdrom
 
 Add required folders
 $ mkdir Archiv spool
-$ sudo chgrp www-data spool
-$ sudo chown www-data Archiv
-$ sudo chmod g+s Archiv spool
 
 Prevent screen from blanking
 In file /etc/default/grub add "consoleblank=0"in the following line:
 GRUB_CMDLINE_LINUX="consoleblank=0"
 
 Enable the userdir and CGI apache modules
-$ sudo a2enmod userdir cgi
+$ sudo a2enmod userdir cgi suexec
+
+Stop the apache service ,so it will find suexec during start.
+$ sudo /etc/init.d/apache2 stop
+$ sudo /etc/init.d/apache2 start
 
 Enable ExecCgi in /etc/apache2/mods-enabled/userdir.conf:
 Options MultiViews Indexes SymLinksIfOwnerMatch ExecCGI

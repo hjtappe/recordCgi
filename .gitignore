@@ -1,2 +1,5 @@
 Archiv
+config.cgi
 spool
+.recordCgi.conf
+copy-local.sh

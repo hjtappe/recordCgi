@@ -11,10 +11,13 @@ use warnings;
 use CGI::Carp qw(fatalsToBrowser);
 BEGIN {
 	use CGI;
+	use Encode qw/from_to/;
+	my $cdtextMaxSize = 64;
 	my $cgi = new CGI;
 	my $archivDir = "Archiv";
 	my $wavFilePrefix = "tm";
 	my $cdDevice = "/dev/cdrw";
+	my $configFile = "config.cgi";
 
 	# add the path to the perl module to @INC.
 	my $mydir = `dirname $0`;
@@ -23,6 +26,20 @@ BEGIN {
 	push(@INC, $mydir);
 	require recordCgi;
 	my $scriptName = &RCGI::scriptName();
+
+	if ( -f $configFile && -r $configFile) {
+		open (CFG, "<".$configFile) || die "Error opening $configFile";
+		while (<CFG>) {
+			my $line = $_;
+			$line =~ s/#.*$//;
+			$line =~ s/\s*$//;
+			if ($line =~ /^\s*cdDevice\s*=\s*(.+)$/i) {
+				$cdDevice = $1;
+				$cdDevice =~ s/^"(.*)"$/$1/;
+			}
+		}
+		close (CFG);
+	}
 
 #	print "Content-type: text/plain\n\n";
 	print "Content-type: text/html\n\n";
@@ -113,7 +130,7 @@ sub reallyRemove()
 		}
 	}
 	# Remove optional files.
-	@extensions = ("txt", "wav", "iso", "toc");
+	@extensions = ("txt", "wav", "iso", "toc", "dat");
 	foreach my $ext (@extensions) {
 		$filename = $archivDir."/".$jobId.".".$ext;
 		if (-r $filename) {
@@ -194,6 +211,7 @@ sub dontburn()
 sub getMp3Info()
 {
 	my $jobId = shift;
+	my $album = "";
 	my $artist = "";
 	my $title = "";
 	my $comment = "";
@@ -203,8 +221,8 @@ sub getMp3Info()
 		my $line = $_;
 		# Remove line ends
 		$line =~ s/\s*$//g;
-		if ($line =~ /^Comment\s+: (\([^\)]+\))(.*)$/) {
-			$comment = $2;
+		if ($line =~ /^Album\s+: (.*)$/) {
+			$album = $1;
 		}
 		if ($line =~ /^Artist\s+: (.*)$/) {
 			$artist = $1;
@@ -212,10 +230,13 @@ sub getMp3Info()
 		if ($line =~ /^Title\s+: (.*)$/) {
 			$title = $1;
 		}
+		if ($line =~ /^Comment\s+: (\([^\)]+\)\s*)(.*)$/) {
+			$comment = $2;
+		}
 	}
 	close(DATA);
 
-	return ($artist, $title, $comment);
+	return ($album, $artist, $title, $comment);
 }
 
 sub reallyburn()
@@ -225,7 +246,8 @@ sub reallyburn()
 	my $res;
 	# multisession info
 	my $msinfo;
-	my ($artist, $title, $comment) = &getMp3Info($jobId);
+
+	my ($album, $artist, $title, $comment) = &getTextInfo($jobId);
 
 	print << 'EOT';
 	<script type="text/javascript">
@@ -244,7 +266,7 @@ EOT
 	if (! -r $archivDir."/".$jobId.".wav") {
 		print "\n";
 		print "### Decode MP3 to temporary wav.\n";
-		$cmd = "mpg321 --stereo --wav ".$archivDir."/".$jobId.".wav ".$archivDir."/".$jobId.".mp3";
+		$cmd = "ffmpeg -i ".$archivDir."/".$jobId.".mp3 -ac 2 -acodec pcm_s16le -ar 44100 ".$archivDir."/".$jobId.".wav";
 		print $cmd."\n";
 		$res = system($cmd." 2>&1");
 		print "\n(".$res.")\n";
@@ -258,52 +280,64 @@ EOT
 	}
 	print "\n";
 
-	if (! -e $archivDir."/".$jobId.".toc") {
+	if (! -e $archivDir."/".$jobId.".txt") {
 		print "### Creating info TXT file.\n";
 		print "\n";
-		&show_jobinfo($jobId, "txt");
+		&updateMp3InfoTxt($jobId)
 	}
 
 	if (! -e $archivDir."/".$jobId.".toc") {
+		$album = &cdtextConvert($album);
+		$title = &cdtextConvert($title);
+		$artist = &cdtextConvert($artist);
+		$comment = &cdtextConvert($comment);
 		print "### Creating cdrdao TOC file.\n";
 		print "\n";
 		open(TOC, ">".$archivDir."/".$jobId.".toc");
-		print TOC << "EOT";
-CD_DA
+		my $toc = "";
+		$toc .= "CD_ROM_XA\n";
+		$toc .= "\n";
+		$toc .= "CD_TEXT {\n";
+		$toc .= "  LANGUAGE_MAP {\n";
+		$toc .= "    0 : EN\n";
+		$toc .= "  }\n";
+		$toc .= "\n";
+		$toc .= "  LANGUAGE 0 {\n";
+		$toc .= "    TITLE \"".$album."\"\n";
+		$toc .= "    PERFORMER \"".$artist."\"\n";
+		$toc .= "    MESSAGE \"".$comment."\"\n";
+		$toc .= "    GENRE \"Speech\"\n";
+		$toc .= "  }\n";
+		$toc .= "}\n";
+		$toc .= "\n";
+		$toc .= "TRACK AUDIO\n";
+		$toc .= "  CD_TEXT {\n";
+		$toc .= "    LANGUAGE 0 {\n";
+		$toc .= "      TITLE \"".$title."\"\n";
+		$toc .= "      PERFORMER \"".$artist."\"\n";
+		$toc .= "      MESSAGE \"".$comment."\"\n";
+		$toc .= "    }\n";
+		$toc .= "  }\n";
+		$toc .= "  FILE \"".$archivDir."/".$jobId.".wav\" 0\n";
+		$toc .= "\n";
 
-CD_TEXT {
-  LANGUAGE_MAP {
-    0 : DE
-  }
-
-  LANGUAGE 0 {
-    TITLE "$title"
-    PERFORMER "$artist"
-	MESSAGE "$comment"
-	GENRE "Speech"
-  }
-}
-
-TRACK AUDIO
-  START
-  CD_TEXT {
-    LANGUAGE 0 {
-      TITLE "$title"
-      PERFORMER "$artist"
-	  MESSAGE "$comment"
-	  GENRE "Speech"
-    }
-  }
-  FILE "$archivDir/$jobId.wav" 0
-EOT
+		print TOC $toc;
 		close(TOC);
 	}
 
 	print "\n";
-	print "### Start burning CD audio track.\n";
+	print "### Start burning CD with audio track.\n";
 	print "\n";
-	$cmd = "cdrdao write -v 2 --device ".$cdDevice." --driver generic-mmc-raw";
-	$cmd .= " --multi --speed=10 ".$archivDir."/".$jobId.".toc";
+	open (TOC, "<".$archivDir."/".$jobId.".toc");
+	while (<TOC>) {
+		print $_;
+	}
+	close (TOC);
+	print "\n";
+	$cmd = "cdrdao write -v 2 --device ".$cdDevice;
+	$cmd .= " --driver generic-mmc:0x10";
+	$cmd .= " --multi";
+	$cmd .= " ".$archivDir."/".$jobId.".toc";
 	print $cmd."\n";
 	$res = system($cmd." 2>&1");
 	print "\n(".$res.")\n";
@@ -312,6 +346,7 @@ EOT
 		print "### Error. Ejecting CD.\n";
 		print "\n";
 		$cmd = "eject ".$cdDevice;
+		print $cmd."\n";
 		$res = system($cmd." 2>&1");
 		print "\n(".$res.")\n";
 		if ($res != 0) {
@@ -319,6 +354,7 @@ EOT
 			print "### Error. Ejecting CD.\n";
 			print "\n";
 			$cmd = "eject ".$cdDevice;
+			print $cmd."\n";
 			print "\n(".system($cmd).")\n";
 			return;
 		}
@@ -361,11 +397,40 @@ EOT
 		print "### Error. Ejecting CD.\n";
 		print "\n";
 		$cmd = "eject ".$cdDevice;
+		print $cmd."\n";
 		print "\n(".system($cmd).")\n";
 		return;
 	}
 
 	print "</PRE>\n";
+}
+
+sub cdtextConvert()
+{
+	my $text = shift;
+
+	# trim the string
+	$text =~ s/\s*$//;
+	$text =~ s/^\s*//;
+
+	# Convert the known Umlauts
+	# to support latin-1 standard CD players as well as
+	# UTF8-aware software players.
+	$text =~ s/Ä/AE/g;
+	$text =~ s/Ö/OE/g;
+	$text =~ s/Ü/UE/g;
+	$text =~ s/ä/ae/g;
+	$text =~ s/ö/oe/g;
+	$text =~ s/ü/ue/g;
+	$text =~ s/ß/ss/g;
+
+	# Trow away all other character decorations.
+	from_to($text, "utf8", "latin1");
+
+	# truncate strings to maximum allowable length
+	$text = substr($text, 0, 64);
+
+	return $text;
 }
 
 sub erase()
@@ -383,6 +448,7 @@ EOT
 	print "<PRE>\n";
 	print "### Ejecting device for check.\n";
 	$cmd = "eject ".$cdDevice;
+	print $cmd."\n";
 	$res = system($cmd." 2>&1");
 	print "\n(".$res.")\n";
 	if ($res != 0) {
@@ -390,6 +456,7 @@ EOT
 		print "### Error. Ejecting CD.\n";
 		print "\n";
 		$cmd = "eject ".$cdDevice;
+		print $cmd."\n";
 		print "\n(".system($cmd).")\n";
 		return;
 	}
@@ -432,6 +499,7 @@ EOT
 			print "### Error. Ejecting CD.\n";
 			print "\n";
 			$cmd = "eject ".$cdDevice;
+			print $cmd."\n";
 			print "\n(".system($cmd).")\n";
 			return;
 		}
@@ -470,21 +538,34 @@ sub save_file()
 	if (! -r $filename) {
 		print "    <P>Unable to find file ".$filename."</P>\n";
 	} else {
-		my $author = scalar $cgi->param("text_referent");
-		$author =~ s/\s*$//;
-		$author =~ s/'/'\\''/g;
+		my $album= scalar $cgi->param("text_veranstalter");
+		$album =~ s/\s*$//;
+		$album =~ s/'/'\\''/g;
 		my $theme = scalar $cgi->param("text_thema");
 		$theme =~ s/\s*$//;
 		$theme =~ s/'/'\\''/g;
+		my $author = scalar $cgi->param("text_referent");
+		$author =~ s/\s*$//;
+		$author =~ s/'/'\\''/g;
 		my $comment = scalar $cgi->param("text_notes");
 		$comment =~ s/\s*$//;
 		$comment =~ s/'/'\\''/g;
-		my $ret = system("mp3info -f -t '$theme' -a '$author' -c '$comment' '$filename' 2>&1");
+		my ($year, $date, $time, $duration) = &getJobDate($jobId);
+
+		# FIXME: This in fact does not update the info read by exiftool!?
+		my $ret = system("mp3info -f -y '$year' -l '$album' -t '$theme' -a '$author' -c '$comment' '$filename' 2>&1");
+		print ("mp3info -f -y '.$year.' -l '$album' -t '$theme' -a '$author' -c '$comment' '$filename' 2>&1\n");
 		if ($ret != 0) {
 			print "Unable to update ".$filename."\n";
 		} else {
 			print "    <P>Updated Info for ",
 				&jobName(scalar $cgi->param("jobId")).".</P>\n";
+			# Update TXT file.
+			&updateMp3InfoTxt($jobId);
+			# Delete toc file. It will be re-generated.
+			if ( -f $archivDir."/".$jobId.".toc") {
+				unlink($archivDir."/".$jobId.".toc");
+			}
 		}
 	}
 }
@@ -513,53 +594,106 @@ sub cleanup()
 	print "</PRE>\n";
 }
 
+sub getJobDate()
+{
+	my $jobId = shift;
+	my $mp3Filename = $jobId.".mp3";
+	my $datFilename = $jobId.".dat";
+	my $year;
+	my $date;
+	my $time;
+	my $duration = 0;
+
+	if (! -f $archivDir."/".$datFilename) {
+		$duration = `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 $archivDir/$mp3Filename 2>&1`;
+		# Strip milliseconds
+		$duration =~ s/\..*//g;
+		my $durationText = (int($duration / 60)).":";
+		if (($duration % 60) < 10) {
+			$durationText .= "0";
+		}
+		$durationText .= ($duration % 60);
+		
+		$mp3Filename =~ /^$wavFilePrefix-((\d{4})-\d{2}-\d{2})T(\d{2}_\d{2}_\d{2})\.mp3/;
+		$date = $1;
+		$year = $2;
+		$time = $3;
+		$time =~ s/_/:/g;
+
+		$year =~ s/(\d{4}).*/$1/;
+
+		open (DAT, ">".$archivDir."/".$datFilename) || die "Unable to write $datFilename cache";
+		print DAT $year."\n";
+		print DAT $date."\n";
+		print DAT $time."\n";
+		print DAT $durationText."\n";
+		close (DAT);
+	} else {
+		open (DAT, "<".$archivDir."/".$datFilename) || die "Unable to read $datFilename cache".
+		my @rest;
+		($year, $date, $time, $duration, @rest) = <DAT>;
+		close (DAT);
+	}
+
+	return ($year, $date, $time, $duration);
+}
 
 sub show_jobDate()
 {
 	my $jobId = shift;
 
-	my $filename = $jobId.".mp3";
-	my $duration = 0;
+	my ($file_year, $file_date, $file_time, $duration) = &getJobDate($jobId);
 
-	# Strip milliseconds
-	$duration = `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 $archivDir/$filename`;
-	$duration =~ s/\..*//g;
-
-	$filename =~ /^$wavFilePrefix-(\d{4}-\d{2}-\d{2})T(\d{2}_\d{2}_\d{2})\.mp3/;
-	my $file_date = $1;
-	my $file_time = $2;
-	$file_time =~ s/_/:/g;
-	print "          <p><b>$file_date<br /><i>$file_time</i></b><br />";
-	print "          (".(int($duration / 60)).":".($duration % 60).")</p>";
+	print "          <p><b>$file_date<br />\n";
+	print "             <i>$file_time</i></b><br />\n";
+	print "          (".$duration.")</p>";
 }
 
+sub updateMp3InfoTxt()
+{
+	my $jobId = shift;
+	my ($album, $artist, $title, $comment) = &getMp3Info($jobId);
+
+	open(TXT, ">".$archivDir."/".$jobId.".txt") || die "Unable to write ".$jobId.".txt";
+	print TXT "$album\n";
+	print TXT "$title\n";
+	print TXT "$artist\n";
+	print TXT "$comment\n";
+	close(TXT);
+}
+
+sub getTextInfo()
+{
+	my $jobId = shift;
+
+	open (TXT, "< ".$archivDir."/".$jobId.".txt") || die "unable to read ".$archivDir."/".$jobId.".txt";
+	my ($album, $artist, $title, $comment, @rest) = <TXT>;
+	close (TXT);
+
+	return ($album, $artist, $title, $comment);
+}
 
 sub show_jobinfo()
 {
 	my $jobId = shift;
 	my $style = shift;
 
-	my $filename = $jobId.".mp3";
-	my ($artist, $title, $comment) = &getMp3Info($jobId);
+	my ($album, $artist, $title, $comment) = &getTextInfo($jobId);
 
 	if (defined $style && $style eq "input") {
+		print "<p>Veranstalter:<br />\n";
+		print '<input type="text" size="30" maxlength="'.$cdtextMaxSize.'" value="'.$album.'" name="text_veranstalter"></p>'."\n";
 		print "<p>Titel:<br />\n";
-		print '<input type="text" size="30" maxlength="30" value="'.$title.'" name="text_thema"></p>'."\n";
+		print '<input type="text" size="30" maxlength="'.$cdtextMaxSize.'" value="'.$title.'" name="text_thema"></p>'."\n";
 		print "<p>Referent:<br />\n";
-		print '<input type="text" size="30" maxlength="30" value="'.$artist.'" name="text_referent"></p>'."\n";
+		print '<input type="text" size="30" maxlength="'.$cdtextMaxSize.'" value="'.$artist.'" name="text_referent"></p>'."\n";
 		print "<p>Textbezug:<br />\n";
-		print '<input type="text" size="30" maxlength="30" name="text_notes" value="'.$comment.'"></p>'."\n";
-	} elsif (defined $style && $style eq "txt") {
-		open(TXT, ">".$archivDir."/".$jobId.".txt");
-		print TXT "             <b>$title</b><br />\n";
-		print TXT "             <i>$artist</i><br />\n";
-		print TXT "             $comment\n";
-		close(TXT);
+		print '<input type="text" size="30" maxlength="'.$cdtextMaxSize.'" name="text_notes" value="'.$comment.'"></p>'."\n";
 	} else {
 		print "<p>\n";
-		print "             <b>$title</b><br />\n";
-		print "             <i>$artist</i><br />\n";
-		print "             $comment\n";
+		print "  <b>$title</b><br />\n";
+		print "  <i>$artist</i><br />\n";
+		print "  $comment\n";
 		print "</p>\n";
 	}
 }
@@ -599,7 +733,7 @@ sub show_list()
 			print "        <TD>\n";
 			print "          <FORM METHOD=POST action=\"$scriptName\">\n";
 			print "          <p>";
- 	   		print "          <input type=\"submit\" name=\"edit\" value=\"Bearbeiten\"><BR>\n";
+ 	   		#print "          <input type=\"submit\" name=\"edit\" value=\"Bearbeiten\"><BR>\n";
     			print "          <input type=\"submit\" name=\"burn\" value=\"Brennen\"><BR>\n";
     			print "          <input type=\"submit\" name=\"remove\" value=\"Entfernen\">\n";
 	    		print "          <input type=\"hidden\" name=\"jobId\" value=\"".$jobId."\"></P>\n";
@@ -617,7 +751,7 @@ sub show_list()
 				print "  <br /><a href=\"".$archivDir."/".$jobId.".wav\">Sound (WAV)</a>\n";
 			}
 			if ( -r $archivDir."/".$jobId.".txt") {
-				print "  <br /><a href=\"".$archivDir."/".$jobId.".txt\">TXT</a>\n";
+				print "  <br /><a href=\"".$archivDir."/".$jobId.".txt\">Info TXT</a>\n";
 			}
 			if ( -r $archivDir."/".$jobId.".iso") {
 				print "  <br /><a href=\"".$archivDir."/".$jobId.".iso\">MP3+TXT ISO</a>\n";

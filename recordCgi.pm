@@ -12,7 +12,7 @@ BEGIN{
 	@ISA         = qw(Exporter);
 	%EXPORT_TAGS = ( );     # eg: TAG => [ qw!name1 name2! ],
 	@EXPORT_OK   = qw();
-	@EXPORT= qw(&RCGI_printFree &mp3Val &w64Val &wavVal &printHeader &printTrailer &scriptName &archivDir &spoolDir &transcoder);
+	@EXPORT= qw(&RCGI_printFree &w64Val &printHeader &printTrailer &scriptName &archivDir &spoolDir &transcoder);
 
 	sub new()
 	{
@@ -47,7 +47,6 @@ use vars @EXPORT_OK;
 1;
 
 # Space calculation multiplicators. Bytes per second.
-my $mp3ToTime = 24469;
 my $w64ToTime = 392097;
 my $wavToTime = 180119;
 
@@ -82,7 +81,7 @@ sub spoolDir()
 
 sub configFile()
 {
-	return &archivDir()."/.recordCgi.conf";
+	return &thisDir()."/.recordCgi.conf";
 }
 
 sub transcoder()
@@ -90,19 +89,9 @@ sub transcoder()
 	return &thisDir()."/moveTranscode.sh 2>&1";
 }
 
-sub mp3Val()
-{
-	return $mp3ToTime;
-}
-
 sub w64Val()
 {
 	return $w64ToTime;
-}
-
-sub wavVal()
-{
-	return $wavToTime;
 }
 
 sub RCGI_printFree()

@@ -1,10 +1,9 @@
 #!/usr/bin/env perl
-# file:///usr/share/doc/selfhtml/html/cgiperl/funktionen/einausgabe.htm
-# file:///usr/share/doc/selfhtml/html/cgiperl/funktionen/dateiverwaltung.htm
 use strict;
 use warnings;
 use CGI::Carp qw(fatalsToBrowser);
 BEGIN {
+	my $cdtextMaxSize = 64;
 	# add the path to the perl module to @INC.
 	my $mydir = `dirname $0`;
 	$mydir =~ s/\r?\n$//;
@@ -156,19 +155,30 @@ EOT
 		if (! defined($referent)) {
 			$referent = "Referent Name"
 		}
+		my $veranstalter = $rcgi->param("veranstalter");
+		if (! defined($veranstalter)) {
+			$veranstalter = "Veranstalter"
+		}
 		print << "EOT";
 <TABLE BORDER=0 CELLPADDING=5>
       <TR VALIGN=TOP>
+	    <TD>Veranstalter:</TD>
+	    <TD><input type="text" size="30" maxlength="$cdtextMaxSize"
+		name="text_veranstalter" value="$veranstalter"></TD>
+	  </TR>
+      <TR VALIGN=TOP>
 	    <TD>Thema:</TD>
-	    <TD><input type="text" size="30" maxlength="30" name="text_thema" /></TD>
-	  </TR><TR VALIGN=TOP>
+	    <TD><input type="text" size="30" maxlength="$cdtextMaxSize" name="text_thema" /></TD>
+	  </TR>
+	  <TR VALIGN=TOP>
         <TD>Referent:</TD>
-		<TD><input type="text" size="30" maxlength="30" name="text_referent"
+		<TD><input type="text" size="30" maxlength="$cdtextMaxSize" name="text_referent"
 		value="$referent"> <input type="checkbox" name="save" value="dosave" /> Save
 		</TD>
-	  </TR><TR VALIGN=TOP>
+	  </TR>
+	  <TR VALIGN=TOP>
         <TD>Textbezug:</TD>
-		<TD><input type="text" size="30" maxlength="30" name="text_notes" value="Bezug: " /></TD>
+		<TD><input type="text" size="30" maxlength="$cdtextMaxSize" name="text_notes" value="Bezug: " /></TD>
 	  </TR>
 	</TABLE>
 
@@ -275,6 +285,12 @@ sub saveFile()
 		} else {
 			open(DATA, "> ".$textname) ||
 				die "Unable to write '".$wavDir."/".$jobId.".txt'!\n";
+			my $textEntry = "";
+			# Publisher
+			$textEntry = scalar $cgi->param("text_veranstalter");
+			# remove trailing invisibles
+			$textEntry =~ s/\s*$//;
+			print DATA $textEntry."\n";
 			# Title
 			$textEntry = scalar $cgi->param("text_thema");
 			# remove trailing invisibles
@@ -285,6 +301,7 @@ sub saveFile()
 			if ($cgi->param("save") &&
 					$cgi->param("save") eq "dosave") {
 				$rcgi->param("referent", scalar $cgi->param("text_referent"));
+				$rcgi->param("veranstalter", scalar $cgi->param("text_veranstalter"));
 			}
 			$textEntry =~ s/\s*$//;
 			print DATA $textEntry."\n";

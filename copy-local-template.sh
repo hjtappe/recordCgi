@@ -9,8 +9,9 @@ set -u
 
 # preset some variables.
 THISDIR="$(dirname $0)"
-RET=0
 COPY_FILE=${1:-}
+TARGET_FILE=`basename "${COPY_FILE}"`
+SUFFIX="${TARGET_FILE##*.}"
 
 if [ -z "$COPY_FILE" ]; then
 	echo >&2 "First argument must be the file to handle."
@@ -22,16 +23,25 @@ if [ ! -r "$COPY_FILE" ]; then
 fi
 
 #################################
+# Set the parameters.
+REMOTE_MOUNT="https://remote.url/mountpoint/"
 TARGET_DIR="$THISDIR/public-records"
 
-# keep the last 3 old records and their descriptions, removing the rest.
-find "${TARGET_DIR}/" -maxdepth 1 -mindepth 1 -type f -mtime +31 -name "${FILE_BASE}*" -exec rm -v {} \;
+# Mount the directory if not already mounted.
+mount | grep "$REMOTE_MOUNT" | grep -q "$TARGET_DIR" \
+	|| mount -v "$TARGET_DIR"
+
+# keep the last x days of records and their descriptions, removing the rest.
+find "${TARGET_DIR}/" -maxdepth 1 -mindepth 1 -type f -mtime +62 -name "*.$SUFFIX" -exec rm -v "{}" \;
 
 # Copy the files to the target directory.
-cp -v "${COPY_FILE}" "${TARGET_DIR}/"
+cp -v "${COPY_FILE}" "${TARGET_DIR}/${TARGET_FILE}"
 RET=$?
+
 # Be sure, data is on the disk
 sync
 #################################
+
+echo $RET
 
 exit $RET

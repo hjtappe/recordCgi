@@ -21,7 +21,7 @@ set -u
 THISDIR="$(dirname $0)"
 ARCHIV_DIR="$THISDIR/Archiv"
 WAV_DIR="$THISDIR/spool"
-FILE_BASE="tm"
+FILE_BASE="tm-"
 # Should be cleaned at each restart (so unfinished jobs can be re-scheduled)
 LOCK_DIR="/var/lock"
 LOGFILE="$WAV_DIR/moveTranscode.log"
@@ -62,9 +62,10 @@ do_transcode()
 	WAV_ENCODER="/usr/bin/sndfile-convert"
 	WAV_ENCODER_OPTIONS="-pcm16"
 	MP3_ENCODER="/usr/bin/lame"
-	MP3_OPTIONS="-s 44.1 -n 16 --signed -a --replaygain-accurate --clipdetect -b 96 -c "
+	MP3_OPTIONS="-s 44.1 --bitwidth 16 --signed -a --replaygain-accurate --clipdetect -b 96 -c "
 	MP3_REDIRECT=""
-	#MP3_ID_CONVERT="/usr/bin/mid3iconv"
+	MP3_ID="/usr/bin/mp3info"
+	MP3_ID_CONVERT="/usr/bin/mid3iconv"
 	NORMALIZER="/usr/bin/normalize-audio"
 	NORMALIZE_OPTIONS="--no-progress"
 	RESAMPLE="/usr/bin/resample"
@@ -94,10 +95,14 @@ do_transcode()
 		echo >&2 "Unable to execute ${MP3_ENCODER}"
 		exit 1
 	fi
-	#if [ ! -x "${MP3_ID_CONVERT}" ]; then
-	#	echo >&2 "Unable to execute ${MP3_ID_CONVERT}"
-	#	exit 1
-	#fi
+	if [ ! -x "${MP3_ID}" ]; then
+		echo >&2 "Unable to execute ${MP3_ID}"
+		exit 1
+	fi
+	if [ ! -x "${MP3_ID_CONVERT}" ]; then
+		echo >&2 "Unable to execute ${MP3_ID_CONVERT}"
+		exit 1
+	fi
 	if [ ! -x "${RESAMPLE}" ]; then
 		echo >&2 "Unable to execute ${RESAMPLE}"
 		exit 1
@@ -139,27 +144,40 @@ do_transcode()
 		MP3_REDIRECT=">/dev/null"
 	fi
 
-	COPYRIGHT=`echo "$JOB_ID" | sed 's/^([0-9]{4})-.*/$1/'`
-	TITLE=`sed '1p;d' "$INFO_FILE"`
-	ARTIST=`sed '2p;d' "$INFO_FILE"`
-	COMMENT=`sed '3p;d' "$INFO_FILE"`
+	COPYRIGHT=`echo "$JOB_ID" | sed "s/^${FILE_BASE}\\([0-9][0-9][0-9][0-9]\\)-.*/\\1/"`
+	ALBUM=`sed '1p;d' "$INFO_FILE"`
+	TITLE=`sed '2p;d' "$INFO_FILE"`
+	ARTIST=`sed '3p;d' "$INFO_FILE"`
+	COMMENT=`sed '4p;d' "$INFO_FILE"`
 
 	nice ${MP3_ENCODER} ${MP3_OPTIONS} \
-		-tt "$TITLE" -ta "$ARTIST" -ty "$YEAR" -tg "Speech" \
 		"${WAV_FILE}" "${MP3_FILE}" ${MP3_REDIRECT} 2>&1
+	# lame does not support UTF-8 characters in ID3 tags.
+	#	--tt "$TITLE" --ta "$ARTIST" --ty "$COPYRIGHT" \
+	#	--tc "$COMMENT" --tg "Speech" \
 
 	if [ $? != 0 ]; then
 		echo >&2 "Error creating ${MP3_FILE}"
 		exit 1
 	fi
-	#vecho
-	#vecho "### Setting encoding of info to the MP3"
-	#vecho
-	#"${MP3_ID_CONVERT}" -e "UTF8" "${MP3_FILE}"
-	#if [ $? != 0 ]; then
-	#	echo >&2 "Error setting MP3 ID encoding"
-	#	exit 1
-	#fi
+	vecho
+	vecho "### Applying the info to the MP3"
+	vecho
+	echo "$MP3_ID" -f -g 'Speech' -y "$COPYRIGHT" -l "$ALBUM" -t "$TITLE" -a "$ARTIST" -c "$COMMENT" "${MP3_FILE}"
+	"$MP3_ID" -f -g 'Speech' -y "$COPYRIGHT" -l "$ALBUM" -t "$TITLE" -a "$ARTIST" -c "$COMMENT" "${MP3_FILE}"
+	if [ $? != 0 ]; then
+		echo >&2 "Error adding MP3 ID"
+		exit 1
+	fi
+	vecho
+	vecho "### Setting encoding of info to the MP3"
+	vecho
+	echo "${MP3_ID_CONVERT}" -e "UTF8" "${MP3_FILE}"
+	"${MP3_ID_CONVERT}" -e "UTF8" "${MP3_FILE}"
+	if [ $? != 0 ]; then
+		echo >&2 "Error setting MP3 ID encoding"
+		exit 1
+	fi
 	vecho
 	vecho "### Archiving the files in the archiv directory"
 	vecho
@@ -171,21 +189,33 @@ do_transcode()
 	INFO_NEW_FILE=$(echo "${INFO_FILE}" | sed 's,^.*/,,;s,[^a-zA-Z0-9\._-],_,g')
 	# Archive the files.
 	mv -v "${WAV_FILE}" "${ARCHIV_DIR}/${WAV_NEW_FILE}" && \
-	mv -v "${MP3_FILE}" "${ARCHIV_DIR}/${MP3_NEW_FILE}"
-	mv -v "${INFO_FILE}" "${ARCHIV_DIR}/${INFO_NEW_FILE}"
-	if [ $? != 0 ]; then
+	mv -v "${MP3_FILE}" "${ARCHIV_DIR}/${MP3_NEW_FILE}" && \
+	cp -v "${INFO_FILE}" "${ARCHIV_DIR}/${INFO_NEW_FILE}"
+	RET=$?
+	echo $RET
+	if [ $RET != 0 ]; then
 		echo >&2 "Error moving files to ${ARCHIV_DIR}/"
 		exit 1
 	fi
-	# Save disk space.
-	rm -v "${W64_FILE}"
-	echo "0"
 
 	if [ -f "$COPY_LOCAL" -a -x "$COPY_LOCAL" ]; then
-		"COPY_LOCAL" "${ARCHIV_DIR}/${MP3_NEW_FILE}" 2>&1
-		RET=$?
-		echo $RET
+		for FILE in "${ARCHIV_DIR}/${INFO_NEW_FILE}" "${ARCHIV_DIR}/${MP3_NEW_FILE}"; do
+			"$COPY_LOCAL" "${FILE}" 2>&1
+			RET=$?
+			echo $RET
+			if [ $RET != 0 ]; then
+				echo >&2 "Error in $COPY_LOCAL of ${FILE}"
+				break
+			fi
+		done
 	fi
+
+	if [ $RET == 0 ]; then
+		# Save disk space.
+		rm -v "${W64_FILE}"
+		rm -v "${INFO_FILE}"
+	fi
+	echo "$RET"
 }
 
 # Get the command line options
@@ -206,7 +236,7 @@ for ARG; do
 done
 
 # Only one of us.
-LOCKFILE="$(ls ${LOCK_DIR}/${FILE_BASE}-*.pid 2>/dev/null)"
+LOCKFILE="$(ls ${LOCK_DIR}/${FILE_BASE}*.pid 2>/dev/null)"
 if [ "$LOCKFILE" != "" ]; then
 	if (ps -p $(cat "$LOCKFILE") -o pid= >/dev/null); then
 		echo >&2 "Only one transcoder per time, please."
@@ -229,7 +259,7 @@ mv "${TMPFILE}" "${LOGFILE}"
 
 while true; do
 	vecho "Searching ${WAV_DIR} for records to transcode."
-	WAV_FILES=$(ls ${WAV_DIR}/${FILE_BASE}-*T*.w64 2>/dev/null)
+	WAV_FILES=$(ls ${WAV_DIR}/${FILE_BASE}*T*.w64 2>/dev/null)
 	JOBS_TO_DO="none"
 
 	# Look for all WAV files to be found there.
