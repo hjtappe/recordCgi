@@ -221,6 +221,8 @@ sub getMp3Info()
 		my $line = $_;
 		# Remove line ends
 		$line =~ s/\s*$//g;
+		# Remove Apostrophes
+		$line =~ s/"//g;
 		if ($line =~ /^Album\s+: (.*)$/) {
 			$album = $1;
 		}
@@ -423,6 +425,8 @@ sub cdtextConvert()
 	$text =~ s/ö/oe/g;
 	$text =~ s/ü/ue/g;
 	$text =~ s/ß/ss/g;
+	# Remove separators used in TOC file
+	$text =~ s/"//g;
 
 	# Trow away all other character decorations.
 	from_to($text, "utf8", "latin1");
@@ -573,22 +577,16 @@ sub save_file()
 sub cleanup()
 {
 	print "          <PRE>\n";
-	my @files = glob("$archivDir/*.wav");
-	foreach my $filename (@files) {
-		if (! -r $filename) {
-			print "##### ! Unable to find file ".$filename."!\n";
-		} else {
-			unlink($filename) || print "##### ! Unable to remove file ".$filename."!\n";
-			print $filename." wurde gel&ouml;scht.\n";
-		}
-	}
-	@files = glob("$archivDir/*.iso");
-	foreach my $filename (@files) {
-		if (! -r $filename) {
-			print "##### ! Unable to find file ".$filename."!\n";
-		} else {
-			unlink($filename) || print "##### ! Unable to remove file ".$filename."!\n";
-			print $filename." wurde gel&ouml;scht.\n";
+	my @extensions = ("wav", "iso", "toc");
+	foreach my $ext (@extensions) {
+		my @files = glob("$archivDir/*.$ext");
+		foreach my $filename (@files) {
+			if (! -r $filename) {
+				print "##### ! Unable to find file ".$filename."!\n";
+			} else {
+				unlink($filename) || print "##### ! Unable to remove file ".$filename."!\n";
+				print $filename." wurde gel&ouml;scht.\n";
+			}
 		}
 	}
 	print "</PRE>\n";
@@ -665,6 +663,12 @@ sub updateMp3InfoTxt()
 sub getTextInfo()
 {
 	my $jobId = shift;
+
+	if (! -e $archivDir."/".$jobId.".txt") {
+		print "### Creating info TXT file.\n";
+		print "\n";
+		&updateMp3InfoTxt($jobId)
+	}
 
 	open (TXT, "< ".$archivDir."/".$jobId.".txt") || die "unable to read ".$archivDir."/".$jobId.".txt";
 	my ($album, $artist, $title, $comment, @rest) = <TXT>;
